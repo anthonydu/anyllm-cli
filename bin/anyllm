@@ -1,0 +1,179 @@
+#!/usr/bin/env zsh
+
+# Config location (XDG or fallback)
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/gemini-cli"
+LEGACY_FILE="$CONFIG_DIR/api_key"    # legacy single file
+GEMINI_FILE="$CONFIG_DIR/gemini_api_key"
+OPENAI_FILE="$CONFIG_DIR/openai_api_key"
+
+show_usage() {
+    echo "Usage: <invocation> [--model MODEL] [--set-key [provider] KEY | --unset-key [provider]] <prompt>" >&2
+    echo "Examples:" >&2
+    echo "  anyllm Tell me a joke" >&2
+    echo "  chatgpt Tell me a joke" >&2
+    echo "  anyllm --model gemini-2.5-flash Tell me a joke" >&2
+    echo "  anyllm --set-key YOUR_KEY              # sets Gemini key (legacy)" >&2
+    echo "  anyllm --set-key openai YOUR_OPENAI_KEY" >&2
+}
+
+# Helper to write a key file
+save_key() {
+    provider="$1"; key="$2"
+    mkdir -p "$CONFIG_DIR"
+    case "$provider" in
+      openai)
+        printf "%s" "$key" > "$OPENAI_FILE" ;;
+      gemini|*)
+        printf "%s" "$key" > "$GEMINI_FILE" ;;
+    esac
+    chmod 600 "$CONFIG_DIR"/* || true
+}
+
+# Helper to remove a key file
+remove_key() {
+    provider="$1"
+    case "$provider" in
+      openai) rm -f "$OPENAI_FILE" ;;
+      gemini|*) rm -f "$GEMINI_FILE" ;;
+    esac
+}
+
+# Handle set/unset key commands
+if [[ "$1" == "--set-key" ]]; then
+    # support: --set-key KEY  (legacy -> gemini)
+    # or: --set-key provider KEY
+    if [[ "$2" == "openai" || "$2" == "gemini" ]]; then
+        provider="$2"; key="$3"
+    else
+        provider="gemini"; key="$2"
+    fi
+    if [[ -z "$key" ]]; then
+        echo "Usage: --set-key [provider] YOUR_API_KEY" >&2
+        exit 1
+    fi
+    save_key "$provider" "$key"
+    echo "API key saved for $provider"
+    exit 0
+fi
+
+if [[ "$1" == "--unset-key" ]]; then
+    if [[ "$2" == "openai" || "$2" == "gemini" ]]; then
+        provider="$2"
+    else
+        provider="gemini"
+    fi
+    remove_key "$provider"
+    echo "API key removed for $provider"
+    exit 0
+fi
+
+# Load keys (env overrides files)
+if [[ -z "$GEMINI_API_KEY" ]]; then
+    if [[ -f "$GEMINI_FILE" ]]; then
+        export GEMINI_API_KEY=$(cat "$GEMINI_FILE")
+    elif [[ -f "$LEGACY_FILE" ]]; then
+        export GEMINI_API_KEY=$(cat "$LEGACY_FILE")
+    fi
+fi
+
+if [[ -z "$OPENAI_API_KEY" && -f "$OPENAI_FILE" ]]; then
+    export OPENAI_API_KEY=$(cat "$OPENAI_FILE")
+fi
+
+# Determine model selection behaviour by invocation name
+invoked_name=$(basename "$0")
+case "$invoked_name" in
+  chatgpt|chat|gpt|gpt4|gpt4o)
+    model_alias="chatgpt"
+    ;;
+  anyllm|gemini|gemini-cli)
+    model_alias="gemini"
+    ;;
+  *)
+    model_alias="gemini"
+    ;;
+esac
+
+# Allow --model MODEL to override
+if [[ "$1" == "--model" ]]; then
+    model_override="$2"
+    shift 2
+fi
+
+# Allow model alias as first arg (e.g., `anyllm chatgpt Tell me a joke`)
+case "$1" in
+  chatgpt|chat|gpt|gpt4|gpt4o)
+    model_alias="chatgpt"; shift ;;
+  gemini|gemini-2.5-flash)
+    model_alias="gemini"; shift ;;
+esac
+
+# Apply model override if provided
+if [[ -n "$model_override" ]]; then
+    # if override looks like an openai model (starts with gpt) use chatgpt path
+    if [[ "$model_override" == gpt* || "$model_override" == chat* ]]; then
+        model_alias="chatgpt"
+        openai_model="$model_override"
+    else
+        model_alias="gemini"
+        google_model="$model_override"
+    fi
+fi
+
+# Final model defaults
+if [[ -z "$google_model" ]]; then
+    google_model="gemini-2.5-flash"
+fi
+if [[ -z "$openai_model" ]]; then
+    openai_model="gpt-4o"
+fi
+
+# Check for prompt
+if [[ -z "$1" ]]; then
+    show_usage
+    exit 1
+fi
+
+prompt="$*"
+
+echo -n "Thinking..." >&2
+
+if [[ "$model_alias" == "gemini" ]]; then
+    if [[ -z "$GEMINI_API_KEY" ]]; then
+        echo "Error: GEMINI_API_KEY not set for Gemini model." >&2
+        echo "Set it with: anyllm --set-key YOUR_KEY" >&2
+        exit 1
+    fi
+    # Build Gemini payload
+    payload=$(jq -n --arg p "$prompt" '{contents: [{parts: [{text: $p}]}]}')
+    response=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/${google_model}:generateContent?key=${GEMINI_API_KEY}" \
+        -H "Content-Type: application/json" \
+        -d "$payload")
+    # Parse response
+    result=$(printf '%s' "$response" | jq -r 'if .candidates then .candidates[0].content.parts[0].text else .error.message end')
+else
+    # chatgpt / OpenAI path
+    if [[ -z "$OPENAI_API_KEY" ]]; then
+        echo "Error: OPENAI_API_KEY not set for ChatGPT model." >&2
+        echo "Set it with: anyllm --set-key openai YOUR_OPENAI_KEY" >&2
+        exit 1
+    fi
+    # Build OpenAI chat payload
+    payload=$(jq -n --arg m "$openai_model" --arg p "$prompt" '{model: $m, messages: [{role: "user", content: $p}] }')
+    response=$(curl -s -X POST "https://api.openai.com/v1/chat/completions" \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer ${OPENAI_API_KEY}" \
+      -d "$payload")
+    # Try parsing common OpenAI response shapes
+    result=$(printf '%s' "$response" | jq -r '.choices[0].message.content // .choices[0].text // .error.message')
+fi
+
+# Clear the "Thinking..." line
+printf "\r\033[K" >&2
+
+if [[ -z "$result" || "$result" == "null" ]]; then
+    echo "Error: No response received from the API." >&2
+    exit 1
+fi
+
+printf '%s\n' "$result"

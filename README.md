@@ -1,31 +1,46 @@
-# gemini-cli
+# anyllm-cli
 
-Simple CLI wrapper for Google Gemini.
+Multi-backend CLI for calling LLMs from the terminal.
 
 Features
-- Send prompts to the Gemini API via the `gemini` command.
-- Persist the API key securely in your XDG config directory with `--set-key`.
+- Send prompts to Google Gemini or OpenAI ChatGPT via a single CLI.
+- Persist provider API keys securely in your XDG config directory with `--set-key`.
 
 Installation (recommended via Homebrew tap):
 
 - Create a GitHub release tarball containing the `bin/` directory.
-- Add the Homebrew formula (see `Formula/gemini-cli.rb`) to a tap or submit to homebrew-core.
-- Users can then install with `brew install user/tap/gemini-cli`.
+- Add the Homebrew formula (see `Formula/anyllm-cli.rb`) to a tap or submit to homebrew-core.
+- Users can then install with `brew install user/tap/anyllm-cli`.
 
 API key usage
 
-- Set the key once (saves to `~/.config/gemini-cli/api_key` or `$XDG_CONFIG_HOME/gemini-cli/api_key`):
+- Set the Gemini key (legacy):
 
 ```bash
-gemini --set-key YOUR_API_KEY
+anyllm --set-key YOUR_GEMINI_KEY
+```
+
+- Set the OpenAI key:
+
+```bash
+anyllm --set-key openai YOUR_OPENAI_KEY
 ```
 
 - Remove the stored key:
 
 ```bash
-gemini --unset-key
+anyllm --unset-key openai
 ```
 
-When running normally, `gemini` will use `GEMINI_API_KEY` if set, otherwise it will read the stored key.
+Usage examples
 
-See the project files for a formula template and packaging instructions.
+```bash
+# Use Gemini (default)
+anyllm Tell me a joke
+
+# Use ChatGPT by invocation name (create symlink) or alias
+anyllm chatgpt Tell me a joke
+```
+
+When running, the CLI checks for provider-specific keys in `$XDG_CONFIG_HOME/gemini-cli/` (fallback `~/.config/gemini-cli/`).
+

@@ -1,0 +1,37 @@
+#!/usr/bin/env zsh
+
+# Ensure the API key exists
+if [[ -z "$GEMINI_API_KEY" ]]; then
+    echo "Error: GEMINI_API_KEY environment variable is not set." >&2
+    echo "Get a key from Google AI Studio and export it in your shell profile." >&2
+    exit 1
+fi
+
+# Check for arguments
+if [[ -z "$1" ]]; then
+    echo "Usage: gemini <your prompt here>" >&2
+    exit 1
+fi
+
+prompt="$*"
+
+# Safely build the JSON payload using jq
+payload=$(jq -n --arg p "$prompt" '{contents: [{parts: [{text: $p}]}]}')
+
+echo -n "Thinking..." >&2
+
+# Call the Gemini API
+response=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}" \
+    -H "Content-Type: application/json" \
+    -d "$payload")
+
+# Clear the "Thinking..." line
+printf "\r\033[K" >&2
+
+if [[ -z "$response" ]]; then
+    echo "Error: No response received from the API." >&2
+    exit 1
+fi
+
+# Output the parsed response
+printf '%s\n' "$response" | jq -r 'if .candidates then .candidates[0].content.parts[0].text else .error.message end'

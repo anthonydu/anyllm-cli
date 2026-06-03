@@ -265,19 +265,16 @@ prompt="$*"
 
 echo -n "Thinking..." >&2
 
+# Prepare API call details
 if [[ "$model_alias" == "gemini" ]]; then
     if [[ -z "$GEMINI_API_KEY" ]]; then
         echo "Error: GEMINI_API_KEY not set for Gemini model." >&2
         echo "Set it with: anyllm --set-key YOUR_KEY" >&2
         exit 1
     fi
-    # Build Gemini payload
+    url="https://generativelanguage.googleapis.com/v1beta/models/${google_model}:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}"
     payload=$(jq -n --arg p "$prompt" '{contents: [{parts: [{text: $p}]}]}')
-    response=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/${google_model}:generateContent?key=${GEMINI_API_KEY}" \
-        -H "Content-Type: application/json" \
-        -d "$payload")
-    # Parse response
-    result=$(printf '%s' "$response" | jq -r 'if .candidates then .candidates[0].content.parts[0].text else .error.message end')
+    auth_header=""
 else
     # chatgpt / OpenAI path
     if [[ -z "$OPENAI_API_KEY" ]]; then
@@ -285,22 +282,81 @@ else
         echo "Set it with: anyllm --set-key openai YOUR_OPENAI_KEY" >&2
         exit 1
     fi
-    # Build OpenAI chat payload
-    payload=$(jq -n --arg m "$openai_model" --arg p "$prompt" '{model: $m, messages: [{role: "user", content: $p}] }')
-    response=$(curl -s -X POST "https://api.openai.com/v1/chat/completions" \
-      -H "Content-Type: application/json" \
-      -H "Authorization: Bearer ${OPENAI_API_KEY}" \
-      -d "$payload")
-    # Try parsing common OpenAI response shapes
-    result=$(printf '%s' "$response" | jq -r '.choices[0].message.content // .choices[0].text // .error.message')
+    url="https://api.openai.com/v1/chat/completions"
+    payload=$(jq -n --arg m "$openai_model" --arg p "$prompt" '{model: $m, messages: [{role: "user", content: $p}], stream: true}')
+    auth_header="Authorization: Bearer ${OPENAI_API_KEY}"
 fi
 
-# Clear the "Thinking..." line
-printf "\r\033[K" >&2
+# Prepare curl command array
+curl_args=(-sS -N -X POST "$url" -H "Content-Type: application/json" -d "$payload")
+if [[ -n "$auth_header" ]]; then
+    curl_args+=(-H "$auth_header")
+fi
 
-if [[ -z "$result" || "$result" == "null" ]]; then
-    echo "Error: No response received from the API." >&2
+# Stream response and process output
+first_line=true
+is_error=false
+error_buffer=""
+thinking_cleared=false
+
+while read -r line; do
+    # Strip trailing carriage return (\r)
+    line="${line%$'\r'}"
+    
+    # Determine if the response is an error JSON payload on the first line
+    if $first_line; then
+        first_line=false
+        if [[ "$line" == \{* ]]; then
+            is_error=true
+        fi
+    fi
+    
+    if $is_error; then
+        error_buffer+="$line"$'\n'
+    else
+        # Process SSE data line
+        if [[ "$line" == data:* ]]; then
+            data="${line#data:}"
+            data="${data# }"
+            if [[ "$data" == "[DONE]" ]]; then
+                break
+            fi
+            
+            # Extract content chunk text
+            if [[ "$model_alias" == "gemini" ]]; then
+                content=$(echo "$data" | jq -r '.candidates[0].content.parts[0].text // empty' 2>/dev/null)
+            else
+                content=$(echo "$data" | jq -r '.choices[0].delta.content // empty' 2>/dev/null)
+            fi
+            
+            # Print chunk immediately if not empty
+            if [[ -n "$content" ]]; then
+                if ! $thinking_cleared; then
+                    # Clear "Thinking..."
+                    printf "\r\033[K" >&2
+                    thinking_cleared=true
+                fi
+                printf "%s" "$content"
+            fi
+        fi
+    fi
+done < <(curl "${curl_args[@]}")
+
+# Ensure "Thinking..." is cleared if it wasn't cleared during streaming
+if ! $thinking_cleared; then
+    printf "\r\033[K" >&2
+fi
+
+# Handle errors if any occurred
+if $is_error; then
+    if [[ "$model_alias" == "gemini" ]]; then
+        error_msg=$(echo "$error_buffer" | jq -r '.error.message // .message // "Unknown Gemini Error"' 2>/dev/null)
+    else
+        error_msg=$(echo "$error_buffer" | jq -r '.error.message // .message // "Unknown OpenAI Error"' 2>/dev/null)
+    fi
+    echo "Error: $error_msg" >&2
     exit 1
 fi
 
-printf '%s\n' "$result"
+# Print a trailing newline for normal response
+printf "\n"

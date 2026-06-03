@@ -1,5 +1,8 @@
 # anyllm-cli
 
+[![CI](https://github.com/anthonydu/anyllm-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/anthonydu/anyllm-cli/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/anthonydu/anyllm-cli/graph/badge.svg)](https://codecov.io/gh/anthonydu/anyllm-cli)
+
 Multi-backend CLI for calling LLMs from the terminal: Google Gemini and OpenAI ChatGPT.
 
 Features
@@ -10,8 +13,8 @@ Features
 Installation (via Homebrew tap):
 
 ```bash
-brew tap user/tap https://github.com/<your-username>/homebrew-anyllm-cli
-brew install user/tap/anyllm-cli
+brew tap anthonydu/anyllm-cli https://github.com/anthonydu/anyllm-cli
+brew install anyllm-cli
 ```
 
 This installs two commands: `gemini` and `chatgpt` (both point to the same executable).

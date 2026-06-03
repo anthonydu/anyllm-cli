@@ -43,7 +43,16 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Run Shell Test Runner
+      - name: Install kcov
+        run: sudo apt-get update && sudo apt-get install -y kcov
+
+      - name: Run Tests with Coverage
         run: |
           chmod +x tests/run_tests.sh
-          ./tests/run_tests.sh
+          kcov --include-path=bin/anyllm coverage_dir ./tests/run_tests.sh
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          directory: coverage_dir
+          fail_ci_if_error: false

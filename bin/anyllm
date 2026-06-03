@@ -211,6 +211,12 @@ remove_mode_pref() {
     rm -f "$MODE_FILE"
 }
 
+# Handle help command
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    show_usage
+    exit 0
+fi
+
 # Handle set/unset key commands
 if [[ "$1" == "--set-key" ]]; then
     # support: --set-key KEY  (legacy -> gemini)
@@ -339,6 +345,12 @@ while [[ "$1" == --* ]]; do
         break
     fi
 done
+
+# Handle help command if passed after options
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    show_usage
+    exit 0
+fi
 
 # Allow model alias as first arg (e.g., `gemini chatgpt Tell me a joke`)
 case "$1" in

@@ -252,6 +252,137 @@ else
     ((FAILED_TESTS++))
 fi
 
+# Test 15: Interactive --set-model for Gemini
+run_test "Interactive set-model Gemini" \
+         "echo '1' | bin/gemini --set-model" \
+         0 \
+         "Default gemini model set to: gemini-2.5-flash" \
+         ""
+if [[ "$(cat "$XDG_CONFIG_HOME/anyllm-cli/gemini_model")" == "gemini-2.5-flash" ]]; then
+    echo "  [PASS] File assertion: gemini_model written correctly."
+    ((PASSED_TESTS++))
+else
+    echo "  [FAIL] File assertion: gemini_model is incorrect or missing."
+    ((FAILED_TESTS++))
+fi
+
+# Test 16: Interactive --set-model for OpenAI
+run_test "Interactive set-model OpenAI" \
+         "echo '1' | bin/gemini --set-model openai" \
+         0 \
+         "Default openai model set to: gpt-4o" \
+         ""
+if [[ "$(cat "$XDG_CONFIG_HOME/anyllm-cli/openai_model")" == "gpt-4o" ]]; then
+    echo "  [PASS] File assertion: openai_model written correctly."
+    ((PASSED_TESTS++))
+else
+    echo "  [FAIL] File assertion: openai_model is incorrect or missing."
+    ((FAILED_TESTS++))
+fi
+
+# Test 17: Interactive --set-style
+run_test "Interactive set-style" \
+         "echo '2' | bin/gemini --set-style" \
+         0 \
+         "Default response style set to: minimal" \
+         ""
+if [[ "$(cat "$XDG_CONFIG_HOME/anyllm-cli/response_style")" == "minimal" ]]; then
+    echo "  [PASS] File assertion: response_style written correctly."
+    ((PASSED_TESTS++))
+else
+    echo "  [FAIL] File assertion: response_style is incorrect or missing."
+    ((FAILED_TESTS++))
+fi
+
+# Test 18: Unset Key, Model, and Style
+# Pre-populate key/model/style files
+echo "test_gemini" > "$XDG_CONFIG_HOME/anyllm-cli/gemini_api_key"
+echo "test_openai" > "$XDG_CONFIG_HOME/anyllm-cli/openai_api_key"
+echo "test_model" > "$XDG_CONFIG_HOME/anyllm-cli/gemini_model"
+echo "test_model" > "$XDG_CONFIG_HOME/anyllm-cli/openai_model"
+echo "test_style" > "$XDG_CONFIG_HOME/anyllm-cli/response_style"
+
+run_test "Unset Gemini Key" "bin/gemini --unset-key" 0 "API key removed for gemini" ""
+run_test "Unset OpenAI Key" "bin/gemini --unset-key openai" 0 "API key removed for openai" ""
+run_test "Unset Gemini Model" "bin/gemini --unset-model" 0 "Default gemini model reset" ""
+run_test "Unset OpenAI Model" "bin/gemini --unset-model openai" 0 "Default openai model reset" ""
+run_test "Unset Response Style" "bin/gemini --unset-style" 0 "Default response style reset to default" ""
+
+if [[ ! -f "$XDG_CONFIG_HOME/anyllm-cli/gemini_api_key" && \
+      ! -f "$XDG_CONFIG_HOME/anyllm-cli/openai_api_key" && \
+      ! -f "$XDG_CONFIG_HOME/anyllm-cli/gemini_model" && \
+      ! -f "$XDG_CONFIG_HOME/anyllm-cli/openai_model" && \
+      ! -f "$XDG_CONFIG_HOME/anyllm-cli/response_style" ]]; then
+    echo "  [PASS] File assertion: Unsetting preferences works correctly."
+    ((PASSED_TESTS++))
+else
+    echo "  [FAIL] File assertion: One or more preference files were not deleted."
+    ((FAILED_TESTS++))
+fi
+
+# Test 19: Legacy single API key migration
+# Reset temp config first
+rm -rf "$XDG_CONFIG_HOME"
+mkdir -p "$XDG_CONFIG_HOME/anyllm-cli"
+echo "legacy_gemini_key" > "$XDG_CONFIG_HOME/anyllm-cli/api_key"
+
+run_test "Legacy Key Migration Check" "bin/gemini How are you?" 0 "Hello from Gemini!" ""
+if [[ "$(cat "$XDG_CONFIG_HOME/anyllm-cli/gemini_api_key")" == "legacy_gemini_key" && ! -f "$XDG_CONFIG_HOME/anyllm-cli/api_key" ]]; then
+    echo "  [PASS] File assertion: Legacy api_key migrated to gemini_api_key."
+    ((PASSED_TESTS++))
+else
+    echo "  [FAIL] File assertion: Legacy key migration failed."
+    ((FAILED_TESTS++))
+fi
+
+# Test 20: Legacy response_mode migration
+rm -rf "$XDG_CONFIG_HOME"
+mkdir -p "$XDG_CONFIG_HOME/anyllm-cli"
+echo "code" > "$XDG_CONFIG_HOME/anyllm-cli/response_mode"
+# Setup API key in env so prompt call succeeds
+export GEMINI_API_KEY="test_gemini_key"
+
+run_test "Legacy response_mode migration" "bin/gemini How are you?" 0 "Hello from Gemini!" ""
+if [[ "$(cat "$XDG_CONFIG_HOME/anyllm-cli/response_style")" == "code" && ! -f "$XDG_CONFIG_HOME/anyllm-cli/response_mode" ]]; then
+    echo "  [PASS] File assertion: Legacy response_mode migrated to response_style."
+    ((PASSED_TESTS++))
+else
+    echo "  [FAIL] File assertion: Legacy response_mode migration failed."
+    ((FAILED_TESTS++))
+fi
+
+# Test 21: Legacy config directory migration
+rm -rf "$XDG_CONFIG_HOME"
+mkdir -p "$XDG_CONFIG_HOME/gemini-cli"
+echo "migrated_key" > "$XDG_CONFIG_HOME/gemini-cli/gemini_api_key"
+
+run_test "Legacy Directory Migration" "bin/gemini How are you?" 0 "Hello from Gemini!" ""
+if [[ "$(cat "$XDG_CONFIG_HOME/anyllm-cli/gemini_api_key")" == "migrated_key" && ! -d "$XDG_CONFIG_HOME/gemini-cli" ]]; then
+    echo "  [PASS] File assertion: Legacy gemini-cli config directory migrated to anyllm-cli."
+    ((PASSED_TESTS++))
+else
+    echo "  [FAIL] File assertion: Legacy directory migration failed."
+    ((FAILED_TESTS++))
+fi
+
+# Test 22: Legacy config directory merging
+rm -rf "$XDG_CONFIG_HOME"
+mkdir -p "$XDG_CONFIG_HOME/anyllm-cli"
+mkdir -p "$XDG_CONFIG_HOME/gemini-cli"
+echo "existing_key" > "$XDG_CONFIG_HOME/anyllm-cli/gemini_api_key"
+echo "new_migrated_key" > "$XDG_CONFIG_HOME/gemini-cli/openai_api_key"
+
+run_test "Legacy Directory Merging" "bin/gemini How are you?" 0 "Hello from Gemini!" ""
+if [[ "$(cat "$XDG_CONFIG_HOME/anyllm-cli/gemini_api_key")" == "existing_key" && \
+      "$(cat "$XDG_CONFIG_HOME/anyllm-cli/openai_api_key")" == "new_migrated_key" && \
+      ! -d "$XDG_CONFIG_HOME/gemini-cli" ]]; then
+    echo "  [PASS] File assertion: Legacy files merged and gemini-cli removed."
+    ((PASSED_TESTS++))
+else
+    echo "  [FAIL] File assertion: Legacy directory merging failed."
+    ((FAILED_TESTS++))
+fi
+
 # Cleanup temp files
 rm -rf "$XDG_CONFIG_HOME"
 rm -f tests/mock_bin/curl_args.log

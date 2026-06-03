@@ -202,7 +202,7 @@ if [[ "$1" == "--model" ]]; then
     shift 2
 fi
 
-# Allow model alias as first arg (e.g., `anyllm chatgpt Tell me a joke`)
+# Allow model alias as first arg (e.g., `gemini chatgpt Tell me a joke`)
 case "$1" in
   chatgpt|chat|gpt|gpt4|gpt4o)
     model_alias="chatgpt"; shift ;;

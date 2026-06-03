@@ -1,20 +1,24 @@
 # anyllm-cli
 
-Multi-backend CLI for calling LLMs from the terminal.
+Multi-backend CLI for calling LLMs from the terminal: Google Gemini and OpenAI ChatGPT.
 
 Features
-- Send prompts to Google Gemini or OpenAI ChatGPT via a single CLI.
-- Persist provider API keys securely in your XDG config directory with `--set-key`.
+- Send prompts to Google Gemini or OpenAI ChatGPT via simple commands.
+- Switch between models with `gemini`, `chatgpt`, or `--model` flag.
+- Persist provider API keys and model preferences securely in your XDG config directory.
 
-Installation (recommended via Homebrew tap):
+Installation (via Homebrew tap):
 
-- Create a GitHub release tarball containing the `bin/` directory.
-- Add the Homebrew formula (see `Formula/anyllm-cli.rb`) to a tap or submit to homebrew-core.
-- Users can then install with `brew install user/tap/anyllm-cli`.
+```bash
+brew tap user/tap https://github.com/<your-username>/homebrew-anyllm-cli
+brew install user/tap/anyllm-cli
+```
 
-API key usage
+This installs `anyllm` (main) and `gemini`, `chatgpt` (symlinks) for easy access.
 
-- Set the Gemini key (legacy):
+API key setup
+
+- Set the Gemini key:
 
 ```bash
 anyllm --set-key YOUR_GEMINI_KEY
@@ -26,7 +30,7 @@ anyllm --set-key YOUR_GEMINI_KEY
 anyllm --set-key openai YOUR_OPENAI_KEY
 ```
 
-- Remove the stored key:
+- Remove a key:
 
 ```bash
 anyllm --unset-key openai
@@ -46,30 +50,33 @@ anyllm --set-model
 anyllm --set-model openai
 ```
 
-- Reset model preference to hardcoded default:
+- Reset model preference:
 
 ```bash
 anyllm --unset-model
-anyllm --unset-model openai
 ```
 
 Usage examples
 
 ```bash
-# Use Gemini (default or your saved preference)
+# Use Gemini (default)
 anyllm Tell me a joke
 
-# Use ChatGPT by invocation name (create symlink) or alias
-anyllm chatgpt Tell me a joke
+# Use ChatGPT via alias
+chatgpt Tell me a joke
+gemini Tell me a joke
 
-# Override saved model for a single call
+# Override with a specific model for one call
 anyllm --model gemini-1.5-pro Tell me a joke
 anyllm --model gpt-4 Tell me a joke
+
+# Use your saved defaults
+anyllm What is 2+2?
 ```
 
 Configuration storage
 
-The CLI stores settings in `$XDG_CONFIG_HOME/gemini-cli/` (fallback `~/.config/gemini-cli/`):
+Settings are stored in `$XDG_CONFIG_HOME/gemini-cli/` (fallback `~/.config/gemini-cli/`):
 - `gemini_api_key` — Your Gemini API key
 - `openai_api_key` — Your OpenAI API key
 - `gemini_model` — Your saved default Gemini model

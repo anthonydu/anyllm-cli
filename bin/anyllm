@@ -41,7 +41,12 @@ GEMINI_FILE="$CONFIG_DIR/gemini_api_key"
 OPENAI_FILE="$CONFIG_DIR/openai_api_key"
 GEMINI_MODEL_FILE="$CONFIG_DIR/gemini_model"
 OPENAI_MODEL_FILE="$CONFIG_DIR/openai_model"
-MODE_FILE="$CONFIG_DIR/response_mode"
+STYLE_FILE="$CONFIG_DIR/response_style"
+
+# Migrate legacy response_mode file if it exists
+if [[ -f "$CONFIG_DIR/response_mode" && ! -f "$STYLE_FILE" ]]; then
+    mv "$CONFIG_DIR/response_mode" "$STYLE_FILE"
+fi
 
 # Verify dependencies
 for cmd in curl jq; do
@@ -90,18 +95,18 @@ OPENAI_MODELS=(
 )
 
 show_usage() {
-    echo "Usage: <gemini|chatgpt> [--model MODEL] [--mode MODE] [--key KEY] [--set-key [provider] KEY | --unset-key [provider]] [--set-model [provider]] [--set-mode [mode] | --unset-mode] <prompt>" >&2
+    echo "Usage: <gemini|chatgpt> [-m MODEL | --model MODEL] [-s STYLE | --style STYLE] [-k KEY | --key KEY] [--set-key [provider] KEY | --unset-key [provider]] [--set-model [provider]] [--set-style [style] | --unset-style] <prompt>" >&2
     echo "Examples:" >&2
     echo "  gemini Tell me a joke" >&2
     echo "  chatgpt Tell me a joke" >&2
-    echo "  gemini --model gemini-2.5-flash Tell me a joke" >&2
-    echo "  gemini --mode minimal Tell me a joke" >&2
-    echo "  gemini --key YOUR_KEY Tell me a joke" >&2
+    echo "  gemini -m gemini-2.5-flash Tell me a joke" >&2
+    echo "  gemini -s minimal Tell me a joke" >&2
+    echo "  gemini -k YOUR_KEY Tell me a joke" >&2
     echo "  gemini --set-key YOUR_KEY              # sets Gemini key" >&2
     echo "  gemini --set-key openai YOUR_OPENAI_KEY" >&2
     echo "  gemini --set-model                     # interactive: pick default Gemini model" >&2
     echo "  gemini --set-model openai              # interactive: pick default OpenAI model" >&2
-    echo "  gemini --set-mode                      # interactive: pick default response mode" >&2
+    echo "  gemini --set-style                     # interactive: pick default response style" >&2
 }
 
 # Interactive model picker
@@ -185,38 +190,38 @@ remove_model() {
     esac
 }
 
-# Interactive mode picker
-pick_mode() {
-    local -a modes=("default" "minimal" "code")
+# Interactive style picker
+pick_style() {
+    local -a styles=("default" "minimal" "code")
     local i
     local choice
-    echo "Available response modes:" >&2
-    for i in "${!modes[@]}"; do
-        echo "  $((i+1))) ${modes[$i]}" >&2
+    echo "Available response styles:" >&2
+    for i in "${!styles[@]}"; do
+        echo "  $((i+1))) ${styles[$i]}" >&2
     done
-    echo -n "Select mode (1-${#modes[@]}): " >&2
+    echo -n "Select style (1-${#styles[@]}): " >&2
     read -r choice
     
-    if [[ "$choice" =~ ^[0-9]+$ && $choice -ge 1 && $choice -le ${#modes[@]} ]]; then
-        echo "${modes[$((choice-1))]}"
+    if [[ "$choice" =~ ^[0-9]+$ && $choice -ge 1 && $choice -le ${#styles[@]} ]]; then
+        echo "${styles[$((choice-1))]}"
     else
         echo "Invalid selection" >&2
         return 1
     fi
 }
 
-# Helper to write response mode preference
-save_mode_pref() {
-    local mode="$1"
+# Helper to write response style preference
+save_style_pref() {
+    local style="$1"
     mkdir -p "$CONFIG_DIR"
     chmod 700 "$CONFIG_DIR" || true
-    (umask 077; printf "%s" "$mode" > "$MODE_FILE")
-    chmod 600 "$MODE_FILE"
+    (umask 077; printf "%s" "$style" > "$STYLE_FILE")
+    chmod 600 "$STYLE_FILE"
 }
 
-# Helper to remove response mode preference
-remove_mode_pref() {
-    rm -f "$MODE_FILE"
+# Helper to remove response style preference
+remove_style_pref() {
+    rm -f "$STYLE_FILE"
 }
 
 # Handle help command
@@ -282,27 +287,27 @@ if [[ "$1" == "--unset-model" ]]; then
     exit 0
 fi
 
-# Handle set/unset response mode commands
-if [[ "$1" == "--set-mode" ]]; then
+# Handle set/unset response style commands
+if [[ "$1" == "--set-style" ]]; then
     if [[ "$2" == "default" || "$2" == "minimal" || "$2" == "code" ]]; then
-        mode="$2"
+        style="$2"
     elif [[ -n "$2" ]]; then
-        echo "Error: Invalid mode '$2'. Available modes: default, minimal, code" >&2
+        echo "Error: Invalid style '$2'. Available styles: default, minimal, code" >&2
         exit 1
     else
-        mode=$(pick_mode)
-        if [[ $? -ne 0 || -z "$mode" ]]; then
+        style=$(pick_style)
+        if [[ $? -ne 0 || -z "$style" ]]; then
             exit 1
         fi
     fi
-    save_mode_pref "$mode"
-    echo "Default response mode set to: $mode"
+    save_style_pref "$style"
+    echo "Default response style set to: $style"
     exit 0
 fi
 
-if [[ "$1" == "--unset-mode" ]]; then
-    remove_mode_pref
-    echo "Default response mode reset to default"
+if [[ "$1" == "--unset-style" ]]; then
+    remove_style_pref
+    echo "Default response style reset to default"
     exit 0
 fi
 
@@ -335,21 +340,21 @@ if [[ -f "$OPENAI_MODEL_FILE" ]]; then
     stored_openai_model=$(cat "$OPENAI_MODEL_FILE")
 fi
 
-# Load stored response mode preference
-stored_response_mode="default"
-if [[ -f "$MODE_FILE" ]]; then
-    stored_response_mode=$(cat "$MODE_FILE")
+# Load stored response style preference
+stored_response_style="default"
+if [[ -f "$STYLE_FILE" ]]; then
+    stored_response_style=$(cat "$STYLE_FILE")
 fi
 
 # Parse command line options loop
-while [[ "$1" == --* ]]; do
-    if [[ "$1" == "--model" ]]; then
+while [[ "$1" == -* ]]; do
+    if [[ "$1" == "--model" || "$1" == "-m" ]]; then
         model_override="$2"
         shift 2
-    elif [[ "$1" == "--mode" ]]; then
-        mode_override="$2"
+    elif [[ "$1" == "--style" || "$1" == "-s" ]]; then
+        style_override="$2"
         shift 2
-    elif [[ "$1" == "--key" ]]; then
+    elif [[ "$1" == "--key" || "$1" == "-k" ]]; then
         key_override="$2"
         shift 2
     else
@@ -401,15 +406,15 @@ prompt="$*"
 
 echo -n "Thinking..." >&2
 
-# Resolve final response mode
-response_mode="${mode_override:-$stored_response_mode}"
-if [[ "$response_mode" != "default" && "$response_mode" != "minimal" && "$response_mode" != "code" ]]; then
-    echo "Error: Invalid response mode '$response_mode'. Available modes: default, minimal, code" >&2
+# Resolve final response style
+response_style="${style_override:-$stored_response_style}"
+if [[ "$response_style" != "default" && "$response_style" != "minimal" && "$response_style" != "code" ]]; then
+    echo "Error: Invalid style '$response_style'. Available styles: default, minimal, code" >&2
     exit 1
 fi
 
 system_prompt=""
-case "$response_mode" in
+case "$response_style" in
   minimal)
     system_prompt="Provide extremely concise, direct answers. Avoid any conversational filler, introductory remarks, or postscripts."
     ;;

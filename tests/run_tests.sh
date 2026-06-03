@@ -127,23 +127,23 @@ else
     ((FAILED_TESTS++))
 fi
 
-# Test 5: Set Default Mode
-run_test "Set default response mode" \
-         "bin/gemini --set-mode minimal" \
+# Test 5: Set Default Style
+run_test "Set default response style" \
+         "bin/gemini --set-style minimal" \
          0 \
-         "Default response mode set to: minimal" \
+         "Default response style set to: minimal" \
          ""
-# Assert response mode is written to correct file
-if [[ "$(cat "$XDG_CONFIG_HOME/anyllm-cli/response_mode")" == "minimal" ]]; then
-    echo "  [PASS] File assertion: response_mode written correctly."
+# Assert response style is written to correct file
+if [[ "$(cat "$XDG_CONFIG_HOME/anyllm-cli/response_style")" == "minimal" ]]; then
+    echo "  [PASS] File assertion: response_style written correctly."
     ((PASSED_TESTS++))
 else
-    echo "  [FAIL] File assertion: response_mode matches incorrect or missing content."
+    echo "  [FAIL] File assertion: response_style matches incorrect or missing content."
     ((FAILED_TESTS++))
 fi
 
-# Reset mode to default for remaining tests
-rm -f "$XDG_CONFIG_HOME/anyllm-cli/response_mode"
+# Reset style to default for remaining tests
+rm -f "$XDG_CONFIG_HOME/anyllm-cli/response_style"
 
 # Test 6: Successful Gemini Prompt Stream
 run_test "Gemini Prompt Call" \
@@ -204,6 +204,51 @@ if grep -q "Authorization: Bearer override_openai_key" tests/mock_bin/curl_args.
     ((PASSED_TESTS++))
 else
     echo "  [FAIL] File assertion: ChatGPT API key override not found in curl arguments."
+    ((FAILED_TESTS++))
+fi
+
+# Test 12: Short flag -m (model override)
+run_test "Short flag -m Check" \
+         "bin/gemini -m gemini-1.5-pro How are you?" \
+         0 \
+         "Hello from Gemini!" \
+         "Thinking..."
+
+if grep -q "models/gemini-1.5-pro:" tests/mock_bin/curl_args.log; then
+    echo "  [PASS] File assertion: Short flag -m model override used correctly."
+    ((PASSED_TESTS++))
+else
+    echo "  [FAIL] File assertion: Short flag -m model override not found in curl arguments."
+    ((FAILED_TESTS++))
+fi
+
+# Test 13: Short flag -s (style override)
+run_test "Short flag -s Check" \
+         "bin/gemini -s minimal How are you?" \
+         0 \
+         "Hello from Gemini!" \
+         "Thinking..."
+
+if grep -q "systemInstruction" tests/mock_bin/curl_args.log; then
+    echo "  [PASS] File assertion: Short flag -s style override used correctly."
+    ((PASSED_TESTS++))
+else
+    echo "  [FAIL] File assertion: Short flag -s style override not found in curl arguments."
+    ((FAILED_TESTS++))
+fi
+
+# Test 14: Short flag -k (key override)
+run_test "Short flag -k Check" \
+         "bin/gemini -k short_key How are you?" \
+         0 \
+         "Hello from Gemini!" \
+         "Thinking..."
+
+if grep -q "key=short_key" tests/mock_bin/curl_args.log; then
+    echo "  [PASS] File assertion: Short flag -k key override used correctly."
+    ((PASSED_TESTS++))
+else
+    echo "  [FAIL] File assertion: Short flag -k key override not found in curl arguments."
     ((FAILED_TESTS++))
 fi
 

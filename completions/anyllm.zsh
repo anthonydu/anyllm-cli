@@ -5,15 +5,15 @@ _anyllm() {
     typeset -A opt_args
 
     local -a common_args=(
-        '--model[Specify LLM model override]:model:->models'
-        '--mode[Specify response mode override]:mode:(default minimal code)'
-        '--key[Specify API key override]:key:'
+        '(-m --model)'{-m,--model}'[Specify LLM model override]:model:->models'
+        '(-s --style)'{-s,--style}'[Specify response style override]:style:(default minimal code)'
+        '(-k --key)'{-k,--key}'[Specify API key override]:key:'
         '--set-key[Save API key for a provider]:provider:->providers_with_key'
         '--unset-key[Remove API key for a provider]:provider:(gemini openai)'
         '--set-model[Interactively set default model]:provider:(gemini openai)'
         '--unset-model[Reset default model preference]:provider:(gemini openai)'
-        '--set-mode[Set default response mode preference]:mode:(default minimal code)'
-        '--unset-mode[Reset default response mode preference]'
+        '--set-style[Set default response style preference]:style:(default minimal code)'
+        '--unset-style[Reset default response style preference]'
         '(-h --help)'{-h,--help}'[Show usage instructions]'
         '*:prompt:_files'
     )

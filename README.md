@@ -68,10 +68,11 @@ gemini Tell me a joke
 # Use ChatGPT
 chatgpt Tell me a joke
 
-# Override with a specific model or key for one call
+# Override with a specific model, style, or key for one call
 gemini --model gemini-1.5-pro Tell me a joke
-chatgpt --model gpt-4 Tell me a joke
-gemini --key YOUR_KEY Tell me a joke
+# Or use shorthands: -m (model), -s (style), -k (key)
+gemini -m gemini-1.5-pro -s minimal Tell me a joke
+gemini -k YOUR_KEY Tell me a joke
 
 # Use your saved defaults
 gemini What is 2+2?
@@ -84,4 +85,5 @@ Settings are stored in `$XDG_CONFIG_HOME/anyllm-cli/` (fallback `~/.config/anyll
 - `openai_api_key` — Your OpenAI API key
 - `gemini_model` — Your saved default Gemini model
 - `openai_model` — Your saved default OpenAI model
+- `response_style` — Your saved default response style
 

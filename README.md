@@ -3,8 +3,8 @@
 Multi-backend CLI for calling LLMs from the terminal: Google Gemini and OpenAI ChatGPT.
 
 Features
-- Send prompts to Google Gemini or OpenAI ChatGPT via simple commands.
-- Switch between models with `gemini`, `chatgpt`, or `--model` flag.
+- Send prompts to Google Gemini or OpenAI ChatGPT via `gemini` or `chatgpt` commands.
+- Switch between models with ease or use `--model` flag to override.
 - Persist provider API keys and model preferences securely in your XDG config directory.
 
 Installation (via Homebrew tap):
@@ -14,26 +14,26 @@ brew tap user/tap https://github.com/<your-username>/homebrew-anyllm-cli
 brew install user/tap/anyllm-cli
 ```
 
-This installs `anyllm` (main) and `gemini`, `chatgpt` (symlinks) for easy access.
+This installs two commands: `gemini` and `chatgpt` (both point to the same executable).
 
 API key setup
 
 - Set the Gemini key:
 
 ```bash
-anyllm --set-key YOUR_GEMINI_KEY
+gemini --set-key YOUR_GEMINI_KEY
 ```
 
 - Set the OpenAI key:
 
 ```bash
-anyllm --set-key openai YOUR_OPENAI_KEY
+gemini --set-key openai YOUR_OPENAI_KEY
 ```
 
 - Remove a key:
 
 ```bash
-anyllm --unset-key openai
+gemini --unset-key openai
 ```
 
 Model configuration
@@ -41,37 +41,36 @@ Model configuration
 - Set your default Gemini model interactively:
 
 ```bash
-anyllm --set-model
+gemini --set-model
 ```
 
 - Set your default OpenAI model interactively:
 
 ```bash
-anyllm --set-model openai
+gemini --set-model openai
 ```
 
 - Reset model preference:
 
 ```bash
-anyllm --unset-model
+gemini --unset-model
 ```
 
 Usage examples
 
 ```bash
 # Use Gemini (default)
-anyllm Tell me a joke
-
-# Use ChatGPT via alias
-chatgpt Tell me a joke
 gemini Tell me a joke
 
+# Use ChatGPT
+chatgpt Tell me a joke
+
 # Override with a specific model for one call
-anyllm --model gemini-1.5-pro Tell me a joke
-anyllm --model gpt-4 Tell me a joke
+gemini --model gemini-1.5-pro Tell me a joke
+chatgpt --model gpt-4 Tell me a joke
 
 # Use your saved defaults
-anyllm What is 2+2?
+gemini What is 2+2?
 ```
 
 Configuration storage

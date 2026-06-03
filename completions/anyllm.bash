@@ -4,7 +4,7 @@ _anyllm() {
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    opts="--model --mode --set-key --unset-key --set-model --unset-model --set-mode --unset-mode --help -h"
+    opts="--model --mode --key --set-key --unset-key --set-model --unset-model --set-mode --unset-mode --help -h"
 
     case "${prev}" in
         --model)

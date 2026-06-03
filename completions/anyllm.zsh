@@ -7,6 +7,7 @@ _anyllm() {
     local -a common_args=(
         '--model[Specify LLM model override]:model:->models'
         '--mode[Specify response mode override]:mode:(default minimal code)'
+        '--key[Specify API key override]:key:'
         '--set-key[Save API key for a provider]:provider:->providers_with_key'
         '--unset-key[Remove API key for a provider]:provider:(gemini openai)'
         '--set-model[Interactively set default model]:provider:(gemini openai)'

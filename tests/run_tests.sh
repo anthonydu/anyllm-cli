@@ -177,6 +177,36 @@ run_test "API Error Message Check" \
          "Error: API key not valid"
 unset MOCK_ERROR
 
+# Test 10: Gemini API Key Override flag
+run_test "Gemini API Key Override Check" \
+         "bin/gemini --key override_gemini_key How are you?" \
+         0 \
+         "Hello from Gemini!" \
+         "Thinking..."
+
+if grep -q "key=override_gemini_key" tests/mock_bin/curl_args.log; then
+    echo "  [PASS] File assertion: Gemini API key override used correctly."
+    ((PASSED_TESTS++))
+else
+    echo "  [FAIL] File assertion: Gemini API key override not found in curl arguments."
+    ((FAILED_TESTS++))
+fi
+
+# Test 11: ChatGPT API Key Override flag
+run_test "ChatGPT API Key Override Check" \
+         "bin/chatgpt --key override_openai_key How are you?" \
+         0 \
+         "Hello from ChatGPT!" \
+         "Thinking..."
+
+if grep -q "Authorization: Bearer override_openai_key" tests/mock_bin/curl_args.log; then
+    echo "  [PASS] File assertion: ChatGPT API key override used correctly."
+    ((PASSED_TESTS++))
+else
+    echo "  [FAIL] File assertion: ChatGPT API key override not found in curl arguments."
+    ((FAILED_TESTS++))
+fi
+
 # Cleanup temp files
 rm -rf "$XDG_CONFIG_HOME"
 rm -f tests/mock_bin/curl_args.log

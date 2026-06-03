@@ -68,9 +68,10 @@ gemini Tell me a joke
 # Use ChatGPT
 chatgpt Tell me a joke
 
-# Override with a specific model for one call
+# Override with a specific model or key for one call
 gemini --model gemini-1.5-pro Tell me a joke
 chatgpt --model gpt-4 Tell me a joke
+gemini --key YOUR_KEY Tell me a joke
 
 # Use your saved defaults
 gemini What is 2+2?

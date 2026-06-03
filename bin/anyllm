@@ -90,12 +90,13 @@ OPENAI_MODELS=(
 )
 
 show_usage() {
-    echo "Usage: <gemini|chatgpt> [--model MODEL] [--mode MODE] [--set-key [provider] KEY | --unset-key [provider]] [--set-model [provider]] [--set-mode [mode] | --unset-mode] <prompt>" >&2
+    echo "Usage: <gemini|chatgpt> [--model MODEL] [--mode MODE] [--key KEY] [--set-key [provider] KEY | --unset-key [provider]] [--set-model [provider]] [--set-mode [mode] | --unset-mode] <prompt>" >&2
     echo "Examples:" >&2
     echo "  gemini Tell me a joke" >&2
     echo "  chatgpt Tell me a joke" >&2
     echo "  gemini --model gemini-2.5-flash Tell me a joke" >&2
     echo "  gemini --mode minimal Tell me a joke" >&2
+    echo "  gemini --key YOUR_KEY Tell me a joke" >&2
     echo "  gemini --set-key YOUR_KEY              # sets Gemini key" >&2
     echo "  gemini --set-key openai YOUR_OPENAI_KEY" >&2
     echo "  gemini --set-model                     # interactive: pick default Gemini model" >&2
@@ -348,6 +349,9 @@ while [[ "$1" == --* ]]; do
     elif [[ "$1" == "--mode" ]]; then
         mode_override="$2"
         shift 2
+    elif [[ "$1" == "--key" ]]; then
+        key_override="$2"
+        shift 2
     else
         break
     fi
@@ -416,12 +420,13 @@ esac
 
 # Prepare API call details
 if [[ "$model_alias" == "gemini" ]]; then
-    if [[ -z "$GEMINI_API_KEY" ]]; then
+    active_key="${key_override:-$GEMINI_API_KEY}"
+    if [[ -z "$active_key" ]]; then
         echo "Error: GEMINI_API_KEY not set for Gemini model." >&2
         echo "Set it with: anyllm --set-key YOUR_KEY" >&2
         exit 1
     fi
-    url="https://generativelanguage.googleapis.com/v1beta/models/${google_model}:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}"
+    url="https://generativelanguage.googleapis.com/v1beta/models/${google_model}:streamGenerateContent?alt=sse&key=${active_key}"
     if [[ -n "$system_prompt" ]]; then
         payload=$(jq -n --arg p "$prompt" --arg sys "$system_prompt" '{contents: [{parts: [{text: $p}]}], systemInstruction: {parts: [{text: $sys}]}}')
     else
@@ -430,7 +435,8 @@ if [[ "$model_alias" == "gemini" ]]; then
     auth_header=""
 else
     # chatgpt / OpenAI path
-    if [[ -z "$OPENAI_API_KEY" ]]; then
+    active_key="${key_override:-$OPENAI_API_KEY}"
+    if [[ -z "$active_key" ]]; then
         echo "Error: OPENAI_API_KEY not set for ChatGPT model." >&2
         echo "Set it with: anyllm --set-key openai YOUR_OPENAI_KEY" >&2
         exit 1
@@ -441,7 +447,7 @@ else
     else
         payload=$(jq -n --arg m "$openai_model" --arg p "$prompt" '{model: $m, messages: [{role: "user", content: $p}], stream: true}')
     fi
-    auth_header="Authorization: Bearer ${OPENAI_API_KEY}"
+    auth_header="Authorization: Bearer ${active_key}"
 fi
 
 # Prepare curl command array

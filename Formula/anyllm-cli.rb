@@ -12,6 +12,15 @@ class AnyllmCli < Formula
     # Create convenience symlinks
     bin.install_symlink "anyllm" => "gemini"
     bin.install_symlink "anyllm" => "chatgpt"
+
+    # Install completions
+    bash_completion.install "completions/anyllm.bash" => "anyllm"
+    bash_completion.install_symlink "anyllm" => "gemini"
+    bash_completion.install_symlink "anyllm" => "chatgpt"
+
+    zsh_completion.install "completions/anyllm.zsh" => "_anyllm"
+    zsh_completion.install_symlink "_anyllm" => "_gemini"
+    zsh_completion.install_symlink "_anyllm" => "_chatgpt"
   end
 
   test do

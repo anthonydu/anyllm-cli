@@ -6,15 +6,19 @@ CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/gemini-cli"
 LEGACY_FILE="$CONFIG_DIR/api_key"    # legacy single file
 GEMINI_FILE="$CONFIG_DIR/gemini_api_key"
 OPENAI_FILE="$CONFIG_DIR/openai_api_key"
+GEMINI_MODEL_FILE="$CONFIG_DIR/gemini_model"
+OPENAI_MODEL_FILE="$CONFIG_DIR/openai_model"
 
 show_usage() {
-    echo "Usage: <invocation> [--model MODEL] [--set-key [provider] KEY | --unset-key [provider]] <prompt>" >&2
+    echo "Usage: <invocation> [--model MODEL] [--set-key [provider] KEY | --unset-key [provider]] [--set-model [provider] MODEL | --unset-model [provider]] <prompt>" >&2
     echo "Examples:" >&2
     echo "  gemini Tell me a joke" >&2
     echo "  chatgpt Tell me a joke" >&2
     echo "  gemini --model gemini-2.5-flash Tell me a joke" >&2
     echo "  gemini --set-key YOUR_KEY              # sets Gemini key (legacy)" >&2
     echo "  gemini --set-key openai YOUR_OPENAI_KEY" >&2
+    echo "  gemini --set-model gemini-1.5-pro     # save Gemini model default" >&2
+    echo "  gemini --set-model openai gpt-4       # save OpenAI model default" >&2
 }
 
 # Helper to write a key file
@@ -36,6 +40,28 @@ remove_key() {
     case "$provider" in
       openai) rm -f "$OPENAI_FILE" ;;
       gemini|*) rm -f "$GEMINI_FILE" ;;
+    esac
+}
+
+# Helper to write a model file
+save_model() {
+    provider="$1"; model="$2"
+    mkdir -p "$CONFIG_DIR"
+    case "$provider" in
+      openai)
+        printf "%s" "$model" > "$OPENAI_MODEL_FILE" ;;
+      gemini|*)
+        printf "%s" "$model" > "$GEMINI_MODEL_FILE" ;;
+    esac
+    chmod 600 "$CONFIG_DIR"/* || true
+}
+
+# Helper to remove a model file
+remove_model() {
+    provider="$1"
+    case "$provider" in
+      openai) rm -f "$OPENAI_MODEL_FILE" ;;
+      gemini|*) rm -f "$GEMINI_MODEL_FILE" ;;
     esac
 }
 
@@ -68,6 +94,34 @@ if [[ "$1" == "--unset-key" ]]; then
     exit 0
 fi
 
+if [[ "$1" == "--set-model" ]]; then
+    # support: --set-model MODEL  (legacy -> gemini)
+    # or: --set-model provider MODEL
+    if [[ "$2" == "openai" || "$2" == "gemini" ]]; then
+        provider="$2"; model="$3"
+    else
+        provider="gemini"; model="$2"
+    fi
+    if [[ -z "$model" ]]; then
+        echo "Usage: --set-model [provider] MODEL" >&2
+        exit 1
+    fi
+    save_model "$provider" "$model"
+    echo "Default model saved for $provider: $model"
+    exit 0
+fi
+
+if [[ "$1" == "--unset-model" ]]; then
+    if [[ "$2" == "openai" || "$2" == "gemini" ]]; then
+        provider="$2"
+    else
+        provider="gemini"
+    fi
+    remove_model "$provider"
+    echo "Default model removed for $provider"
+    exit 0
+fi
+
 # Load keys (env overrides files)
 if [[ -z "$GEMINI_API_KEY" ]]; then
     if [[ -f "$GEMINI_FILE" ]]; then
@@ -79,6 +133,15 @@ fi
 
 if [[ -z "$OPENAI_API_KEY" && -f "$OPENAI_FILE" ]]; then
     export OPENAI_API_KEY=$(cat "$OPENAI_FILE")
+fi
+
+# Load default models from config files
+if [[ -f "$GEMINI_MODEL_FILE" ]]; then
+    stored_gemini_model=$(cat "$GEMINI_MODEL_FILE")
+fi
+
+if [[ -f "$OPENAI_MODEL_FILE" ]]; then
+    stored_openai_model=$(cat "$OPENAI_MODEL_FILE")
 fi
 
 # Determine model selection behaviour by invocation name
@@ -121,12 +184,12 @@ if [[ -n "$model_override" ]]; then
     fi
 fi
 
-# Final model defaults
+# Final model defaults (use stored if available, else hardcoded defaults)
 if [[ -z "$google_model" ]]; then
-    google_model="gemini-2.5-flash"
+    google_model="${stored_gemini_model:-gemini-2.5-flash}"
 fi
 if [[ -z "$openai_model" ]]; then
-    openai_model="gpt-4o"
+    openai_model="${stored_openai_model:-gpt-4o}"
 fi
 
 # Check for prompt

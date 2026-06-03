@@ -8,6 +8,37 @@ OPENAI_FILE="$CONFIG_DIR/openai_api_key"
 GEMINI_MODEL_FILE="$CONFIG_DIR/gemini_model"
 OPENAI_MODEL_FILE="$CONFIG_DIR/openai_model"
 
+# Verify dependencies
+for cmd in curl jq; do
+    if ! command -v "$cmd" &>/dev/null; then
+        echo "Error: Required dependency '$cmd' is not installed." >&2
+        exit 1
+    fi
+done
+
+# Determine model selection behaviour by invocation name
+invoked_name=$(basename "$0")
+
+# Reject direct anyllm invocation
+if [[ "$invoked_name" == "anyllm" ]]; then
+    echo "Error: Use 'gemini' or 'chatgpt' directly, not 'anyllm'." >&2
+    echo "Examples:" >&2
+    echo "  gemini Tell me a joke" >&2
+    echo "  chatgpt Tell me a joke" >&2
+    exit 1
+fi
+
+case "$invoked_name" in
+  chatgpt|chat|gpt|gpt4|gpt4o)
+    model_alias="chatgpt"
+    default_provider="openai"
+    ;;
+  *)
+    model_alias="gemini"
+    default_provider="gemini"
+    ;;
+esac
+
 # Available models
 GEMINI_MODELS=(
   "gemini-2.5-flash"
@@ -110,7 +141,7 @@ if [[ "$1" == "--set-key" ]]; then
     if [[ "$2" == "openai" || "$2" == "gemini" ]]; then
         provider="$2"; key="$3"
     else
-        provider="gemini"; key="$2"
+        provider="$default_provider"; key="$2"
     fi
     if [[ -z "$key" ]]; then
         echo "Usage: --set-key [provider] YOUR_API_KEY" >&2
@@ -125,7 +156,7 @@ if [[ "$1" == "--unset-key" ]]; then
     if [[ "$2" == "openai" || "$2" == "gemini" ]]; then
         provider="$2"
     else
-        provider="gemini"
+        provider="$default_provider"
     fi
     remove_key "$provider"
     echo "API key removed for $provider"
@@ -134,10 +165,10 @@ fi
 
 # Handle set/unset model commands
 if [[ "$1" == "--set-model" ]]; then
-    if [[ "$2" == "openai" ]]; then
-        provider="openai"
+    if [[ "$2" == "openai" || "$2" == "gemini" ]]; then
+        provider="$2"
     else
-        provider="gemini"
+        provider="$default_provider"
     fi
     model=$(pick_model "$provider")
     if [[ $? -eq 0 && -n "$model" ]]; then
@@ -150,23 +181,30 @@ if [[ "$1" == "--set-model" ]]; then
 fi
 
 if [[ "$1" == "--unset-model" ]]; then
-    if [[ "$2" == "openai" ]]; then
-        provider="openai"
+    if [[ "$2" == "openai" || "$2" == "gemini" ]]; then
+        provider="$2"
     else
-        provider="gemini"
+        provider="$default_provider"
     fi
     remove_model "$provider"
     echo "Default $provider model reset"
     exit 0
 fi
 
-# Load keys (env overrides files)
-if [[ -z "$GEMINI_API_KEY" ]]; then
-    if [[ -f "$GEMINI_FILE" ]]; then
-        export GEMINI_API_KEY=$(cat "$GEMINI_FILE")
-    elif [[ -f "$LEGACY_FILE" ]]; then
-        export GEMINI_API_KEY=$(cat "$LEGACY_FILE")
+# Migrate legacy API key file if it exists
+if [[ -f "$LEGACY_FILE" ]]; then
+    legacy_key=$(cat "$LEGACY_FILE")
+    if [[ -n "$legacy_key" ]]; then
+        if save_key "gemini" "$legacy_key"; then
+            rm -f "$LEGACY_FILE"
+            echo "Migrated legacy API key to new location: $GEMINI_FILE" >&2
+        fi
     fi
+fi
+
+# Load keys (env overrides files)
+if [[ -z "$GEMINI_API_KEY" && -f "$GEMINI_FILE" ]]; then
+    export GEMINI_API_KEY=$(cat "$GEMINI_FILE")
 fi
 
 if [[ -z "$OPENAI_API_KEY" && -f "$OPENAI_FILE" ]]; then
@@ -182,29 +220,6 @@ if [[ -f "$OPENAI_MODEL_FILE" ]]; then
     stored_openai_model=$(cat "$OPENAI_MODEL_FILE")
 fi
 
-# Determine model selection behaviour by invocation name
-invoked_name=$(basename "$0")
-
-# Reject direct anyllm invocation
-if [[ "$invoked_name" == "anyllm" ]]; then
-    echo "Error: Use 'gemini' or 'chatgpt' directly, not 'anyllm'." >&2
-    echo "Examples:" >&2
-    echo "  gemini Tell me a joke" >&2
-    echo "  chatgpt Tell me a joke" >&2
-    exit 1
-fi
-
-case "$invoked_name" in
-  chatgpt|chat|gpt|gpt4|gpt4o)
-    model_alias="chatgpt"
-    ;;
-  anyllm|gemini|gemini-cli)
-    model_alias="gemini"
-    ;;
-  *)
-    model_alias="gemini"
-    ;;
-esac
 
 # Allow --model MODEL to override
 if [[ "$1" == "--model" ]]; then

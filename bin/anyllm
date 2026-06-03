@@ -34,6 +34,7 @@ GEMINI_FILE="$CONFIG_DIR/gemini_api_key"
 OPENAI_FILE="$CONFIG_DIR/openai_api_key"
 GEMINI_MODEL_FILE="$CONFIG_DIR/gemini_model"
 OPENAI_MODEL_FILE="$CONFIG_DIR/openai_model"
+MODE_FILE="$CONFIG_DIR/response_mode"
 
 # Verify dependencies
 for cmd in curl jq; do
@@ -82,15 +83,17 @@ OPENAI_MODELS=(
 )
 
 show_usage() {
-    echo "Usage: <gemini|chatgpt> [--model MODEL] [--set-key [provider] KEY | --unset-key [provider]] [--set-model [provider]] <prompt>" >&2
+    echo "Usage: <gemini|chatgpt> [--model MODEL] [--mode MODE] [--set-key [provider] KEY | --unset-key [provider]] [--set-model [provider]] [--set-mode [mode] | --unset-mode] <prompt>" >&2
     echo "Examples:" >&2
     echo "  gemini Tell me a joke" >&2
     echo "  chatgpt Tell me a joke" >&2
     echo "  gemini --model gemini-2.5-flash Tell me a joke" >&2
+    echo "  gemini --mode minimal Tell me a joke" >&2
     echo "  gemini --set-key YOUR_KEY              # sets Gemini key" >&2
     echo "  gemini --set-key openai YOUR_OPENAI_KEY" >&2
     echo "  gemini --set-model                     # interactive: pick default Gemini model" >&2
     echo "  gemini --set-model openai              # interactive: pick default OpenAI model" >&2
+    echo "  gemini --set-mode                      # interactive: pick default response mode" >&2
 }
 
 # Interactive model picker
@@ -167,6 +170,39 @@ remove_model() {
     esac
 }
 
+# Interactive mode picker
+pick_mode() {
+    modes=("default" "minimal" "code")
+    echo "Available response modes:" >&2
+    for i in "${!modes[@]}"; do
+        echo "  $((i+1))) ${modes[$i]}" >&2
+    done
+    echo -n "Select mode (1-${#modes[@]}): " >&2
+    read choice
+    
+    if [[ "$choice" =~ ^[0-9]+$ && $choice -ge 1 && $choice -le ${#modes[@]} ]]; then
+        echo "${modes[$((choice-1))]}"
+    else
+        echo "Invalid selection" >&2
+        return 1
+    fi
+}
+
+# Helper to save response mode preference
+save_mode_pref() {
+    mode="$1"
+    mkdir -p "$CONFIG_DIR"
+    chmod 700 "$CONFIG_DIR" || true
+    touch "$MODE_FILE"
+    chmod 600 "$MODE_FILE"
+    printf "%s" "$mode" > "$MODE_FILE"
+}
+
+# Helper to remove response mode preference
+remove_mode_pref() {
+    rm -f "$MODE_FILE"
+}
+
 # Handle set/unset key commands
 if [[ "$1" == "--set-key" ]]; then
     # support: --set-key KEY  (legacy -> gemini)
@@ -224,6 +260,30 @@ if [[ "$1" == "--unset-model" ]]; then
     exit 0
 fi
 
+# Handle set/unset response mode commands
+if [[ "$1" == "--set-mode" ]]; then
+    if [[ "$2" == "default" || "$2" == "minimal" || "$2" == "code" ]]; then
+        mode="$2"
+    elif [[ -n "$2" ]]; then
+        echo "Error: Invalid mode '$2'. Available modes: default, minimal, code" >&2
+        exit 1
+    else
+        mode=$(pick_mode)
+        if [[ $? -ne 0 || -z "$mode" ]]; then
+            exit 1
+        fi
+    fi
+    save_mode_pref "$mode"
+    echo "Default response mode set to: $mode"
+    exit 0
+fi
+
+if [[ "$1" == "--unset-mode" ]]; then
+    remove_mode_pref
+    echo "Default response mode reset to default"
+    exit 0
+fi
+
 # Migrate legacy API key file if it exists
 if [[ -f "$LEGACY_FILE" ]]; then
     legacy_key=$(cat "$LEGACY_FILE")
@@ -253,12 +313,24 @@ if [[ -f "$OPENAI_MODEL_FILE" ]]; then
     stored_openai_model=$(cat "$OPENAI_MODEL_FILE")
 fi
 
-
-# Allow --model MODEL to override
-if [[ "$1" == "--model" ]]; then
-    model_override="$2"
-    shift 2
+# Load stored response mode preference
+stored_response_mode="default"
+if [[ -f "$MODE_FILE" ]]; then
+    stored_response_mode=$(cat "$MODE_FILE")
 fi
+
+# Parse command line options loop
+while [[ "$1" == --* ]]; do
+    if [[ "$1" == "--model" ]]; then
+        model_override="$2"
+        shift 2
+    elif [[ "$1" == "--mode" ]]; then
+        mode_override="$2"
+        shift 2
+    else
+        break
+    fi
+done
 
 # Allow model alias as first arg (e.g., `gemini chatgpt Tell me a joke`)
 case "$1" in
@@ -298,6 +370,23 @@ prompt="$*"
 
 echo -n "Thinking..." >&2
 
+# Resolve final response mode
+response_mode="${mode_override:-$stored_response_mode}"
+if [[ "$response_mode" != "default" && "$response_mode" != "minimal" && "$response_mode" != "code" ]]; then
+    echo "Error: Invalid response mode '$response_mode'. Available modes: default, minimal, code" >&2
+    exit 1
+fi
+
+system_prompt=""
+case "$response_mode" in
+  minimal)
+    system_prompt="Provide extremely concise, direct answers. Avoid any conversational filler, introductory remarks, or postscripts."
+    ;;
+  code)
+    system_prompt="Provide only clean, executable code or structured format. Do not wrap code in markdown code fences unless explicitly requested. Avoid any explanation or commentary."
+    ;;
+esac
+
 # Prepare API call details
 if [[ "$model_alias" == "gemini" ]]; then
     if [[ -z "$GEMINI_API_KEY" ]]; then
@@ -306,7 +395,11 @@ if [[ "$model_alias" == "gemini" ]]; then
         exit 1
     fi
     url="https://generativelanguage.googleapis.com/v1beta/models/${google_model}:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}"
-    payload=$(jq -n --arg p "$prompt" '{contents: [{parts: [{text: $p}]}]}')
+    if [[ -n "$system_prompt" ]]; then
+        payload=$(jq -n --arg p "$prompt" --arg sys "$system_prompt" '{contents: [{parts: [{text: $p}]}], systemInstruction: {parts: [{text: $sys}]}}')
+    else
+        payload=$(jq -n --arg p "$prompt" '{contents: [{parts: [{text: $p}]}]}')
+    fi
     auth_header=""
 else
     # chatgpt / OpenAI path
@@ -316,7 +409,11 @@ else
         exit 1
     fi
     url="https://api.openai.com/v1/chat/completions"
-    payload=$(jq -n --arg m "$openai_model" --arg p "$prompt" '{model: $m, messages: [{role: "user", content: $p}], stream: true}')
+    if [[ -n "$system_prompt" ]]; then
+        payload=$(jq -n --arg m "$openai_model" --arg p "$prompt" --arg sys "$system_prompt" '{model: $m, messages: [{role: "system", content: $sys}, {role: "user", content: $p}], stream: true}')
+    else
+        payload=$(jq -n --arg m "$openai_model" --arg p "$prompt" '{model: $m, messages: [{role: "user", content: $p}], stream: true}')
+    fi
     auth_header="Authorization: Bearer ${OPENAI_API_KEY}"
 fi
 
@@ -357,9 +454,9 @@ while read -r line; do
             
             # Extract content chunk text
             if [[ "$model_alias" == "gemini" ]]; then
-                content=$(echo "$data" | jq -r '.candidates[0].content.parts[0].text // empty' 2>/dev/null)
+                content=$(printf '%s\n' "$data" | jq -r '.candidates[0].content.parts[0].text // empty' 2>/dev/null)
             else
-                content=$(echo "$data" | jq -r '.choices[0].delta.content // empty' 2>/dev/null)
+                content=$(printf '%s\n' "$data" | jq -r '.choices[0].delta.content // empty' 2>/dev/null)
             fi
             
             # Print chunk immediately if not empty
@@ -383,9 +480,9 @@ fi
 # Handle errors if any occurred
 if $is_error; then
     if [[ "$model_alias" == "gemini" ]]; then
-        error_msg=$(echo "$error_buffer" | jq -r '.error.message // .message // "Unknown Gemini Error"' 2>/dev/null)
+        error_msg=$(printf '%s\n' "$error_buffer" | jq -r '.error.message // .message // "Unknown Gemini Error"' 2>/dev/null)
     else
-        error_msg=$(echo "$error_buffer" | jq -r '.error.message // .message // "Unknown OpenAI Error"' 2>/dev/null)
+        error_msg=$(printf '%s\n' "$error_buffer" | jq -r '.error.message // .message // "Unknown OpenAI Error"' 2>/dev/null)
     fi
     echo "Error: $error_msg" >&2
     exit 1

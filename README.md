@@ -32,15 +32,46 @@ anyllm --set-key openai YOUR_OPENAI_KEY
 anyllm --unset-key openai
 ```
 
+Model configuration
+
+- Set your default Gemini model interactively:
+
+```bash
+anyllm --set-model
+```
+
+- Set your default OpenAI model interactively:
+
+```bash
+anyllm --set-model openai
+```
+
+- Reset model preference to hardcoded default:
+
+```bash
+anyllm --unset-model
+anyllm --unset-model openai
+```
+
 Usage examples
 
 ```bash
-# Use Gemini (default)
+# Use Gemini (default or your saved preference)
 anyllm Tell me a joke
 
 # Use ChatGPT by invocation name (create symlink) or alias
 anyllm chatgpt Tell me a joke
+
+# Override saved model for a single call
+anyllm --model gemini-1.5-pro Tell me a joke
+anyllm --model gpt-4 Tell me a joke
 ```
 
-When running, the CLI checks for provider-specific keys in `$XDG_CONFIG_HOME/gemini-cli/` (fallback `~/.config/gemini-cli/`).
+Configuration storage
+
+The CLI stores settings in `$XDG_CONFIG_HOME/gemini-cli/` (fallback `~/.config/gemini-cli/`):
+- `gemini_api_key` — Your Gemini API key
+- `openai_api_key` — Your OpenAI API key
+- `gemini_model` — Your saved default Gemini model
+- `openai_model` — Your saved default OpenAI model
 

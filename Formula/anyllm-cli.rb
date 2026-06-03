@@ -2,7 +2,7 @@ class AnyllmCli < Formula
   desc "Multi-backend CLI for LLMs (Google Gemini, OpenAI ChatGPT)"
   homepage "https://github.com/anthonydu/anyllm-cli"
   url "https://github.com/anthonydu/anyllm-cli/archive/refs/tags/v0.1.0.tar.gz"
-  sha256 "REPLACE_WITH_SHA256"
+  sha256 "ddc22c0e024f3bf4fb4b6d146902f4fd88d08df085146ba13fbd6e2227248a40"
   license "MIT"
 
   depends_on "jq"

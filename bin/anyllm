@@ -324,11 +324,13 @@ fi
 
 # Load keys (env overrides files)
 if [[ -z "$GEMINI_API_KEY" && -f "$GEMINI_FILE" ]]; then
-    export GEMINI_API_KEY=$(cat "$GEMINI_FILE")
+    GEMINI_API_KEY=$(cat "$GEMINI_FILE")
+    export GEMINI_API_KEY
 fi
 
 if [[ -z "$OPENAI_API_KEY" && -f "$OPENAI_FILE" ]]; then
-    export OPENAI_API_KEY=$(cat "$OPENAI_FILE")
+    OPENAI_API_KEY=$(cat "$OPENAI_FILE")
+    export OPENAI_API_KEY
 fi
 
 # Load stored model preferences

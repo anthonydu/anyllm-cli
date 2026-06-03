@@ -46,6 +46,9 @@ jobs:
       - name: Install kcov
         run: sudo apt-get update && sudo apt-get install -y kcov
 
+      - name: Set ptrace scope
+        run: sudo sysctl kernel.yama.ptrace_scope=0
+
       - name: Run Tests with Coverage
         run: |
           chmod +x tests/run_tests.sh

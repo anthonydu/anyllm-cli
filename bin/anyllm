@@ -24,15 +24,15 @@ OPENAI_MODELS=(
 )
 
 show_usage() {
-    echo "Usage: <invocation> [--model MODEL] [--set-key [provider] KEY | --unset-key [provider]] [--set-model [provider]] <prompt>" >&2
+    echo "Usage: <gemini|chatgpt> [--model MODEL] [--set-key [provider] KEY | --unset-key [provider]] [--set-model [provider]] <prompt>" >&2
     echo "Examples:" >&2
-    echo "  anyllm Tell me a joke" >&2
+    echo "  gemini Tell me a joke" >&2
     echo "  chatgpt Tell me a joke" >&2
-    echo "  anyllm --model gemini-2.5-flash Tell me a joke" >&2
-    echo "  anyllm --set-key YOUR_KEY              # sets Gemini key" >&2
-    echo "  anyllm --set-key openai YOUR_OPENAI_KEY" >&2
-    echo "  anyllm --set-model                     # interactive: pick default Gemini model" >&2
-    echo "  anyllm --set-model openai              # interactive: pick default OpenAI model" >&2
+    echo "  gemini --model gemini-2.5-flash Tell me a joke" >&2
+    echo "  gemini --set-key YOUR_KEY              # sets Gemini key" >&2
+    echo "  gemini --set-key openai YOUR_OPENAI_KEY" >&2
+    echo "  gemini --set-model                     # interactive: pick default Gemini model" >&2
+    echo "  gemini --set-model openai              # interactive: pick default OpenAI model" >&2
 }
 
 # Interactive model picker

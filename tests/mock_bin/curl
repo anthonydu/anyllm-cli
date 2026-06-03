@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+
+# Log arguments to a file for assertion check
+echo "$@" > tests/mock_bin/curl_args.log
+
+# Handle connection failure simulation
+if [[ "$MOCK_ERROR" == "connection_failed" ]]; then
+    echo "curl: (35) LibreSSL SSL_connect: SSL_ERROR_SYSCALL in connection to nonexistent-domain-xyz.com:443" >&2
+    exit 35
+fi
+
+# Handle API key invalid simulation
+if [[ "$MOCK_ERROR" == "api_invalid_key" ]]; then
+    # Return 400 JSON error
+    if [[ "$*" == *generativelanguage.googleapis.com* ]]; then
+        echo '{"error": {"code": 400, "message": "API key not valid. Please pass a valid API key."}}'
+    else
+        echo '{"error": {"message": "Incorrect API key provided.", "type": "invalid_request_error"}}'
+    fi
+    exit 0
+fi
+
+# Normal streaming responses
+if [[ "$*" == *generativelanguage.googleapis.com* ]]; then
+    # Gemini SSE format
+    echo 'data: {"candidates": [{"content": {"parts": [{"text": "Hello "}]}}]}'
+    sleep 0.01
+    echo 'data: {"candidates": [{"content": {"parts": [{"text": "from "}]}}]}'
+    sleep 0.01
+    echo 'data: {"candidates": [{"content": {"parts": [{"text": "Gemini!"}]}}]}'
+else
+    # OpenAI SSE format
+    echo 'data: {"choices": [{"delta": {"content": "Hello "}}]}'
+    sleep 0.01
+    echo 'data: {"choices": [{"delta": {"content": "from "}}]}'
+    sleep 0.01
+    echo 'data: {"choices": [{"delta": {"content": "ChatGPT!"}}]}'
+    sleep 0.01
+    echo 'data: [DONE]'
+fi

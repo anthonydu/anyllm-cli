@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    name: Lint Shell Scripts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck
+        run: shellcheck bin/anyllm
+
+  audit:
+    name: Audit Homebrew Formula
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Audit Formula
+        run: |
+          brew tap-new local/tap
+          cp Formula/anyllm-cli.rb $(brew --repository local/tap)/Formula/anyllm-cli.rb
+          brew audit --strict local/tap/anyllm-cli
+
+  test:
+    name: Run Automated Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Run Shell Test Runner
+        run: |
+          chmod +x tests/run_tests.sh
+          ./tests/run_tests.sh

@@ -75,7 +75,7 @@ gemini What is 2+2?
 
 Configuration storage
 
-Settings are stored in `$XDG_CONFIG_HOME/gemini-cli/` (fallback `~/.config/gemini-cli/`):
+Settings are stored in `$XDG_CONFIG_HOME/anyllm-cli/` (fallback `~/.config/anyllm-cli/`):
 - `gemini_api_key` — Your Gemini API key
 - `openai_api_key` — Your OpenAI API key
 - `gemini_model` — Your saved default Gemini model

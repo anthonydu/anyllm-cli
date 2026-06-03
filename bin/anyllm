@@ -12,15 +12,22 @@ if [[ -d "$LEGACY_CONFIG_DIR" ]]; then
     else
         mkdir -p "$CONFIG_DIR"
         chmod 700 "$CONFIG_DIR" || true
-        find "$LEGACY_CONFIG_DIR" -maxdepth 1 -type f | while read -r f; do
+        merge_success=true
+        while read -r f; do
             [[ -f "$f" ]] || continue
             basename_f=$(basename "$f")
             if [[ ! -f "$CONFIG_DIR/$basename_f" ]]; then
-                cp "$f" "$CONFIG_DIR/$basename_f"
+                if ! cp "$f" "$CONFIG_DIR/$basename_f"; then
+                    merge_success=false
+                fi
             fi
-        done
-        rm -rf "$LEGACY_CONFIG_DIR"
-        echo "Merged config files from legacy config directory." >&2
+        done < <(find "$LEGACY_CONFIG_DIR" -maxdepth 1 -type f)
+        if $merge_success; then
+            rm -rf "$LEGACY_CONFIG_DIR"
+            echo "Merged config files from legacy config directory." >&2
+        else
+            echo "Error: Failed to merge some config files. Legacy config directory preserved at $LEGACY_CONFIG_DIR" >&2
+        fi
     fi
 fi
 
@@ -449,14 +456,17 @@ is_error=false
 error_buffer=""
 thinking_cleared=false
 
-while read -r line; do
+status_file=$(mktemp)
+trap 'rm -f "$status_file"' EXIT INT TERM
+
+while read -r line || [[ -n "$line" ]]; do
     # Strip trailing carriage return (\r)
     line="${line%$'\r'}"
     
     # Determine if the response is an error JSON payload on the first line
     if $first_line; then
         first_line=false
-        if [[ "$line" == \{* ]]; then
+        if [[ "$line" =~ ^[[:space:]]*\{ ]]; then
             is_error=true
         fi
     fi
@@ -490,11 +500,22 @@ while read -r line; do
             fi
         fi
     fi
-done < <(curl "${curl_args[@]}")
+done < <(curl "${curl_args[@]}"; echo $? > "$status_file")
 
 # Ensure "Thinking..." is cleared if it wasn't cleared during streaming
 if ! $thinking_cleared; then
     printf "\r\033[K" >&2
+fi
+
+# Check curl exit status
+if [[ -f "$status_file" ]]; then
+    curl_exit=$(cat "$status_file")
+    rm -f "$status_file"
+    trap - EXIT INT TERM
+    if [[ "$curl_exit" -ne 0 ]]; then
+        echo "Error: Network request failed with curl exit code $curl_exit" >&2
+        exit "$curl_exit"
+    fi
 fi
 
 # Handle errors if any occurred

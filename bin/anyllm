@@ -184,6 +184,16 @@ fi
 
 # Determine model selection behaviour by invocation name
 invoked_name=$(basename "$0")
+
+# Reject direct anyllm invocation
+if [[ "$invoked_name" == "anyllm" ]]; then
+    echo "Error: Use 'gemini' or 'chatgpt' directly, not 'anyllm'." >&2
+    echo "Examples:" >&2
+    echo "  gemini Tell me a joke" >&2
+    echo "  chatgpt Tell me a joke" >&2
+    exit 1
+fi
+
 case "$invoked_name" in
   chatgpt|chat|gpt|gpt4|gpt4o)
     model_alias="chatgpt"
